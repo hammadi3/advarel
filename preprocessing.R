@@ -1,12 +1,5 @@
-# Install and load packages
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, lubridate, weibulltools, Metrics, zoo, DT, dplyr, plotly)
-
-# Set option stringsAsFactors = F globaly
-options(stringsAsFactors = F)
-
-
 ####
+source("lib.R")
 source("helpers.R")
 
 ################################################################################################################################################
@@ -113,9 +106,21 @@ Fzg_final <- filter(Fzg_complete, jfs < lim_jahresfahrstrecke)
 
 # Add target column using johnson method
 
-probs <- johnson(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
+probs_johnson <- johnson(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
   select(time, prob) %>% rename_at("time",~"jfs")
 
-Fzg_final_with_target <- merge(x = Fzg_final, y = probs, by = "jfs")
+probs_kaplan <- kaplan_meier(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
+  select(time, prob) %>% rename_at("time",~"jfs")
+
+probs_nelson <- nelson(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
+  select(time, prob) %>% rename_at("time",~"jfs")
+
+Fzg_final_with_target <- merge(x = Fzg_final, y = probs_johnson, by = "jfs")
 
 plot_ly(x = Fzg_final_with_target$prob, type = "histogram")
+
+write_csv(Fzg_final_with_target, "Fzg_final_with_target.csv")
+
+
+
+
