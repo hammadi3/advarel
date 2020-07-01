@@ -3,52 +3,60 @@ source("lib.R")
 # beste Merkmalskombination: Auslieferungsland, Getriebe, Motor, Kraftstoff, Fahrzeugmodell, Einsatzdauer
 # Auswahl relevanter Merkmale
 
-Fzg_final_with_target <- read_csv("Fzg_final_with_target.csv")
+data <- read_csv("Fzg_final.csv")
+data <- data[,-1]
 
-spalten <- c("land","getriebe","motor","kraftstoff","fahrzeugmodell")
+factor_columns <-c("land","getriebe","motor","kraftstoff","getriebewerk","motorwerk","temperaturen_winter","temperaturen_sommer","werk","fahrzeugmodell","niederschlag_sommer","hersteller","niederschlag_winter","getriebe_art","leistung","winter","marke","mop","bauteil_mop")
+numeric_columns <- c("Fahrstrecke", "einsatzdauer_years")
 
-zeit <- function(y){
-  y %>%
-    select(jfs)
-}
 
-zeit_train <- zeit(Fzg_final_with_target[Fzg_final_with_target$event==1,])
-zeit_test <- zeit(Fzg_final_with_target[Fzg_final_with_target$event==0,])
+fahrstrecke_train <- data %>%
+  filter(event == 1) %>%
+  select(Fahrstrecke)
 
+fahrstrecke_test <- data %>%
+  filter(event == 0) %>%
+  select(Fahrstrecke)
+
+zeit_train <- data %>%
+  filter(event == 1) %>%
+  select(einsatzdauer_years)
+
+zeit_test <- data %>%
+  filter(event == 0) %>%
+  select(einsatzdauer_years)
+
+fahrstrecke <- rbind.data.frame(fahrstrecke_train,fahrstrecke_test)
 zeit <- rbind.data.frame(zeit_train,zeit_test)
-# maximales repairdate ist der Betrachtungszeitpunkt
 
 
 #####################################
 #1.training Dataset -> Ausgefallene Autos "Jahresfahrstrecke_failed"
-data_train <- Fzg_final_with_target %>%
-  filter(event == 1) %>%
-  select(spalten,"prob")
+data_train <- data[data$event == 1,c(factor_columns,"prob")]
 
 #2. test Datensatz -> nicht ausgefallene Autos "Jahresfahrstrecke_target"
-data_test <- Fzg_final_with_target %>%
-  filter(event == 0) %>%
-  select(spalten,"prob")
+data_test <- data[data$event == 0,c(factor_columns,"prob")]
+
 
 #data_test <- sample_n(data_test, 30000)
 
 #------------------------------
 
 # data_train und data_test vereinen
-data <- rbind.data.frame(data_train,data_test)
+data_all <- rbind.data.frame(data_train,data_test)
 
-prob <- data$prob
+prob <- data_all$prob
 
 #um später trainig und test wieder zu trennen 
 rows_train <- nrow(data_train)
-rows_test <- nrow(data)
+rows_test <- nrow(data_all)
 
-sp <- ncol(data)-1
+sp <- ncol(data_all)-1
 
 # one hot encoding nominal skalierter Merkmale
-names_data <- flatten(sapply(data[,1:sp], function(x) sort(unique(x))))
-length_data <- sapply(data[,1:sp], function(x) length(unique(x)))
-factor_data <- lapply(data[,1:sp], function(x) as.integer(factor(x)))
+names_data <- flatten(sapply(data_all[,1:sp], function(x) sort(unique(x))))
+length_data <- sapply(data_all[,1:sp], function(x) length(unique(x)))
+factor_data <- lapply(data_all[,1:sp], function(x) as.integer(factor(x)))
 cat_data <- lapply(factor_data, function(x) to_categorical(x))
 data_NN <- as.data.frame(cat_data)
 
@@ -62,14 +70,17 @@ data_NN <- data_NN %>%
 names(data_NN) <- names_data
 
 #einsatzdauer, nominale Merkmale und Jahresfahrstrecke vereinen - so sieht der Datensatz aus, der in das Netz gegegben wird
-data_NN <- cbind.data.frame(zeit,data_NN,prob)
+data_NN <- cbind.data.frame(fahrstrecke, zeit, data_NN, prob)
+
+mean <- apply(data_NN$Fahrstrecke, 2, mean) 
+std <- apply(train_data, 2, sd)
+data_NN$Fahrstrecke <- scale(data_NN$Fahrstrecke, center = mean(data_NN$Fahrstrecke), scale = sd(data_NN$Fahrstrecke)) 
+data_NN$einsatzdauer_years <- scale(data_NN$einsatzdauer_years, center = mean(data_NN$einsatzdauer_years), scale = sd(data_NN$einsatzdauer_years)) 
+
 
 # nun werden die Spaltennamen entfernt und die Tabelle zur Matrix gemacht damit das Netz die Daten verarbeiten kann (der Schirtt davor diente an sich nur der Veranschaulichung, um zu verstehen, auf welche weise die Daten ins Netz gehen)
 data_model <- as.matrix(data_NN)
 dimnames(data_model) <- NULL
-
-#einsatzdauer normalisieren
-data_model[,1] <- normalize(data_model[,1])
 
 d <- ncol(data_model)-1
 
