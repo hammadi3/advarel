@@ -82,45 +82,42 @@ Fzg_complete <- merge(x = Fzg, y = Asf, by = "vin", all.x = T)
 
 betrachtungsdatum <- max(Asf$repair_date)
 Fzg_complete <- Fzg_complete %>% mutate(event = ifelse(is.na(mileage), 0, 1)) %>%
-  mutate(einsatzdauer_days = ifelse(event == 1, as.numeric(difftime(repair_date,zulassungsdatum, units = "days")), as.numeric(difftime(betrachtungsdatum,zulassungsdatum, units = "days")))) %>% 
-  mutate(einsatzdauer_years = einsatzdauer_days / 365) 
+  mutate(einsatzdauer_days = ifelse(event == 1,
+                                    as.numeric(difftime(repair_date,zulassungsdatum, units = "days")),
+                                    as.numeric(difftime(betrachtungsdatum,zulassungsdatum, units = "days")))) %>% 
+  mutate(einsatzdauer_years = einsatzdauer_days / 365) %>%
+  mutate(Fahrstrecke = jahresfahrstrecke * einsatzdauer_years)
 
 plot_ly(x = Fzg_complete[Fzg_complete$event==1,]$einsatzdauer_days, type = "histogram")
 
-# Calculate mileage using monte carlo simulation
-list_detail <- mcs_mileage(x = Fzg_complete$einsatzdauer_days,
-                           event = Fzg_complete$event,
-                           mileage = Fzg_complete$mileage,
-                           distribution = "lognormal",
-                           seed = 5,
-                           details = TRUE)
-
-Fzg_complete <- Fzg_complete %>% mutate(jfs = ifelse(event == 0, round(list_detail$mileage_sim_annual), jahresfahrstrecke)) 
-
-plot_ly(x = Fzg_complete$jfs, type = "histogram")
-plot_ly(x = Fzg_complete[Fzg_complete$jfs < lim_jahresfahrstrecke,]$jfs, type = "histogram")
-
-
-Fzg_final <- filter(Fzg_complete, jfs < lim_jahresfahrstrecke)
-
-
 # Add target column using johnson method
 
-probs_johnson <- johnson(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
-  select(time, prob) %>% rename_at("time",~"jfs")
+probs_johnson <- johnson(time = Fzg_complete$Fahrstrecke, event = Fzg_complete$event) %>% 
+  select(time, prob) %>% rename_at("time",~"Fahrstrecke")
 
-probs_kaplan <- kaplan_meier(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
-  select(time, prob) %>% rename_at("time",~"jfs")
+probs_kaplan <- kaplan_meier(time = Fzg_complete$Fahrstrecke, event = Fzg_complete$event) %>% 
+  select(time, prob) %>% rename_at("time",~"Fahrstrecke")
 
-probs_nelson <- nelson(time = Fzg_final$jfs, event = Fzg_final$event) %>% 
-  select(time, prob) %>% rename_at("time",~"jfs")
+probs_nelson <- nelson(time = Fzg_complete$Fahrstrecke, event = Fzg_complete$event) %>% 
+  select(time, prob) %>% rename_at("time",~"Fahrstrecke")
 
-Fzg_final_with_target <- merge(x = Fzg_final, y = probs_johnson, by = "jfs")
+plot_ly(data = probs_johnson[probs_johnson$Fahrstrecke <= 500000,], x = ~Fahrstrecke, y = ~prob , type = 'scatter', mode = 'lines')
+plot_ly(data = probs_kaplan[probs_kaplan$Fahrstrecke <= 500000,], x = ~Fahrstrecke, y = ~prob , type = 'scatter', mode = 'lines')
+plot_ly(data = probs_nelson[probs_nelson$Fahrstrecke <= 500000,], x = ~Fahrstrecke, y = ~prob , type = 'scatter', mode = 'lines')
 
-plot_ly(x = Fzg_final_with_target$prob, type = "histogram")
+probs_plots <- stack_lines_probs(x = probs_johnson[probs_johnson$Fahrstrecke <= 500000,]$Fahrstrecke,
+                           y1 = probs_johnson[probs_johnson$Fahrstrecke <= 500000,]$prob,
+                           y2 = probs_kaplan[probs_kaplan$Fahrstrecke <= 500000,]$prob,
+                           y3 = probs_nelson[probs_nelson$Fahrstrecke <= 500000,]$prob)
 
-write_csv(Fzg_final_with_target, "Fzg_final_with_target.csv")
+Fzg_final <- merge(x = Fzg_complete, y = probs_johnson, by = "Fahrstrecke")
 
+plot_ly(x = Fzg_final$prob, type = "histogram")
 
+fzg_500 <- filter(Fzg_final , Fahrstrecke <= 500000)
+plot_ly(data = fzg_500, x = ~Fahrstrecke, y = ~prob , type = 'scatter', mode = 'lines')
+plot_ly(x = fzg_500$prob, type = "histogram")
+plot_ly(x = fzg_500[fzg_500$event==1,]$Fahrstrecke, type = "histogram")
 
+write_csv(fzg_500, "Fzg_final.csv")
 
