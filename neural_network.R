@@ -1,15 +1,12 @@
 source("lib.R")
-##########################################################################################################################
-# beste Merkmalskombination: Auslieferungsland, Getriebe, Motor, Kraftstoff, Fahrzeugmodell, Einsatzdauer
-# Auswahl relevanter Merkmale
 
-data <- read_csv("Fzg_final.csv")
+data <- read_csv("~/Daten/Fzg_final.csv")
 data <- data[,-1]
 
 factor_columns <-c("land","getriebe","motor","kraftstoff","getriebewerk","motorwerk","temperaturen_winter","temperaturen_sommer","werk","fahrzeugmodell","niederschlag_sommer","hersteller","niederschlag_winter","getriebe_art","leistung","winter","marke","mop","bauteil_mop")
 numeric_columns <- c("Fahrstrecke", "einsatzdauer_years")
 
-
+'
 fahrstrecke_train <- data %>%
   filter(event == 1) %>%
   select(Fahrstrecke)
@@ -17,6 +14,7 @@ fahrstrecke_train <- data %>%
 fahrstrecke_test <- data %>%
   filter(event == 0) %>%
   select(Fahrstrecke)
+'
 
 zeit_train <- data %>%
   filter(event == 1) %>%
@@ -26,7 +24,7 @@ zeit_test <- data %>%
   filter(event == 0) %>%
   select(einsatzdauer_years)
 
-fahrstrecke <- rbind.data.frame(fahrstrecke_train,fahrstrecke_test)
+#fahrstrecke <- rbind.data.frame(fahrstrecke_train,fahrstrecke_test)
 zeit <- rbind.data.frame(zeit_train,zeit_test)
 
 
@@ -70,11 +68,9 @@ data_NN <- data_NN %>%
 names(data_NN) <- names_data
 
 #einsatzdauer, nominale Merkmale und Jahresfahrstrecke vereinen - so sieht der Datensatz aus, der in das Netz gegegben wird
-data_NN <- cbind.data.frame(fahrstrecke, zeit, data_NN, prob)
+data_NN <- cbind.data.frame(zeit, data_NN, prob)
 
-mean <- apply(data_NN$Fahrstrecke, 2, mean) 
-std <- apply(train_data, 2, sd)
-data_NN$Fahrstrecke <- scale(data_NN$Fahrstrecke, center = mean(data_NN$Fahrstrecke), scale = sd(data_NN$Fahrstrecke)) 
+#data_NN$Fahrstrecke <- scale(data_NN$Fahrstrecke, center = mean(data_NN$Fahrstrecke), scale = sd(data_NN$Fahrstrecke)) 
 data_NN$einsatzdauer_years <- scale(data_NN$einsatzdauer_years, center = mean(data_NN$einsatzdauer_years), scale = sd(data_NN$einsatzdauer_years)) 
 
 
@@ -97,13 +93,13 @@ model <- keras_model_sequential()
 #Modell
 model %>%
   layer_dense(units = 200, activation = 'relu',input_shape = ncol(training)) %>% 
-  layer_dense(units = 200, activation = 'relu') %>%
+ # layer_dense(units = 200, activation = 'relu') %>%
   layer_dense(units = 200, activation = 'relu') %>%
   layer_dense(units = 1)
 
 #compile
 model %>% compile(loss = 'mse',
-                  optimizer = optimizer_adam(lr = 0.0001),
+                  optimizer = optimizer_adam(lr = 0.00001),
                   metrics = 'mae')
 
 earlystop <- callback_early_stopping(
@@ -111,49 +107,19 @@ earlystop <- callback_early_stopping(
   patience = 20)
 
 #fit the model
-model %>%
+NN <- model %>%
   fit(training,
       trainingtarget,
-      epochs = 5,
-      batch_size = 50,
+      epochs = 100,
+      batch_size = 100,
       validation_split = 0.30,
       callbacks = list(earlystop),
       shuffle = TRUE,
       verbose = 1)
 
 
-
-
 # Abweichung wird bestimmt
-model %>% evaluate(test,testtarget)
+evaluation <- NN %>% evaluate(test,testtarget)
 
 # Vorhersage wird getroffen
-model %>% predict(test)
-
-# geschätzte Jahresfahrstrecke zum Datensatz hinzufügen 
-Fzg_predicted_NN <- cbind.data.frame(not_Asf,round(pred))
-names(Fzg_predicted_NN)[names(Fzg_predicted_NN) == "round(pred)"] <- "jahresfahrstrecke_predicted"
-
-Fzg_predicted_NN <- Fzg_predicted_NN %>%
-  mutate(diff = jahresfahrstrecke_target-jahresfahrstrecke_predicted) %>%
-  mutate(mse = (jahresfahrstrecke_target-jahresfahrstrecke_predicted)^2) 
-
-# Abweichung
-mse_NN <- evalmodel$loss
-rmse_NN <- sqrt(mse_NN)
-
-###########################################################################################################################################
-# für die App
-
-#um Datensätze zu selecten in tab 1, 2, 3
-merkmale1 <- c("vin","kdnr","schadensart","repair_date","zulassungsdatum","repair_country","mileage","jahresfahrstrecke_failed")
-merkmale2 <- c("vin","kraftstoff","fahrzeugmodell","auslieferungsland","jahresfahrstrecke_target","jahresfahrstrecke_predicted","diff","mse")
-merkmale3 <- c("vin","kdnr","schadensart","kraftstoff","fahrzeugmodell","auslieferungsland","repair_date","zulassungsdatum","repair_country","mileage","jahresfahrstrecke_failed")
-merkmale4 <- c("vin","kraftstoff","fahrzeugmodell","auslieferungsland","jahresfahrstrecke_target","jahresfahrstrecke_predicted","diff","mse")
-
-Merkmale1 <- c("VIN","Kdnr.","Schadensart","Reparaturdatum","Zulassungsdatum","Reparaturland","Kilometerstand","Jahresfahrstrecke")
-Merkmale2 <- c("VIN","Kraftstoff","Fahrzeugmodell","Auslieferungsland","Jahresfahrstrecke_target","Jahresfahrstrecke_predicted","Diff","MSE")
-Merkmale3 <- c("VIN","Kdnr.","Schadensart","Kraftstoff","Fahrzeugmodell","Auslieferungsland","Reparaturdatum","Zulassungsdatum","Reparaturland","Kilometerstand","Jahresfahrstrecke_failed")
-Merkmale4 <- c("VIN","Kraftstoff","Fahrzeugmodell","Auslieferungsland","Jahresfahrstrecke_target","Jahresfahrstrecke_predicted","Diff","MSE")
-
-vec <- c("kraftstoff","fahrzeugmodell","auslieferungsland")
+prediction <- model %>% predict(test)
