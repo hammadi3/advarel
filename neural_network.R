@@ -1,12 +1,11 @@
 source("lib.R")
 
-data <- read_csv("~/Daten/Fzg_final.csv")
-data <- data[,-1]
+data <- fzg_500
 
-factor_columns <-c("land","getriebe","motor","kraftstoff","getriebewerk","motorwerk","temperaturen_winter","temperaturen_sommer","werk","fahrzeugmodell","niederschlag_sommer","hersteller","niederschlag_winter","getriebe_art","leistung","winter","marke","mop","bauteil_mop")
+factor_columns <- c("land","getriebe_art","getriebe_gruppe","motor","kraftstoff","getriebewerk","motorwerk","temperaturen_winter","temperaturen_sommer","werk","fahrzeugmodell","regentrockenzeit","niederschlag_sommer","niederschlag_winter","leistung","winter","marke","mop")
 numeric_columns <- c("Fahrstrecke", "einsatzdauer_years")
 
-'
+
 fahrstrecke_train <- data %>%
   filter(event == 1) %>%
   select(Fahrstrecke)
@@ -14,7 +13,7 @@ fahrstrecke_train <- data %>%
 fahrstrecke_test <- data %>%
   filter(event == 0) %>%
   select(Fahrstrecke)
-'
+
 
 zeit_train <- data %>%
   filter(event == 1) %>%
@@ -24,7 +23,7 @@ zeit_test <- data %>%
   filter(event == 0) %>%
   select(einsatzdauer_years)
 
-#fahrstrecke <- rbind.data.frame(fahrstrecke_train,fahrstrecke_test)
+fahrstrecke <- rbind.data.frame(fahrstrecke_train,fahrstrecke_test)
 zeit <- rbind.data.frame(zeit_train,zeit_test)
 
 
@@ -83,8 +82,8 @@ d <- ncol(data_model)-1
 # data in training and test aufteilen
 training <- data_model[1:rows_train,1:d] # training datensatz wird nicht mehr benötigt weil Netz schon trainiert. ist vollständigkeitshalber trotzdem aufgeführt
 trainingtarget <- data_model[1:rows_train, d+1] 
-test <- data_model[(rows_train+1):(rows_train + 30000),1:d]
-testtarget <- data_model[(rows_train+1):(rows_train + 30000),d+1]
+test <- data_model[(rows_train+1):rows_test,1:d]
+testtarget <- data_model[(rows_train+1):rows_test,d+1]
 
 # trainiertes Netz laden
 
@@ -93,7 +92,7 @@ model <- keras_model_sequential()
 #Modell
 model %>%
   layer_dense(units = 200, activation = 'relu',input_shape = ncol(training)) %>% 
- # layer_dense(units = 200, activation = 'relu') %>%
+  layer_dense(units = 200, activation = 'relu') %>%
   layer_dense(units = 200, activation = 'relu') %>%
   layer_dense(units = 1)
 
@@ -107,10 +106,10 @@ earlystop <- callback_early_stopping(
   patience = 20)
 
 #fit the model
-NN <- model %>%
+model %>%
   fit(training,
       trainingtarget,
-      epochs = 100,
+      epochs = 300,
       batch_size = 100,
       validation_split = 0.30,
       callbacks = list(earlystop),
@@ -119,7 +118,14 @@ NN <- model %>%
 
 
 # Abweichung wird bestimmt
-evaluation <- NN %>% evaluate(test,testtarget)
+evaluation <- model %>% evaluate(test,testtarget)
 
 # Vorhersage wird getroffen
 prediction <- model %>% predict(test)
+
+
+mse_to_accuracy(prediction = prediction, testtarget = testtarget)
+
+
+
+

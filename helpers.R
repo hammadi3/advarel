@@ -16,6 +16,7 @@ johnson <- function(time, event){
 }
 
 
+
 kaplan_meier <- function(time, event){
   df <- data.frame(time = time, status = event) %>%
     group_by(time) %>% 
@@ -52,5 +53,11 @@ nelson <- function(time, event){
            prob = 1 - exp(-H_nel))
 }
 
-
+mse_to_accuracy <- function(prediction, testtarget){
+  errors <- abs(as.data.frame(prediction)$V1 - testtarget)
+  p <- errors / testtarget
+  mape <- mean(100 * p)
+  accuracy <- 100 - mape
+  accuracy
+}
 

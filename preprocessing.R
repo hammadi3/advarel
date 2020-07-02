@@ -4,7 +4,7 @@ source("helpers.R")
 
 ################################################################################################################################################
 # Import and clean all vehicules produced in 2014:
-Fzg_raw <- read.csv2("../Daten/deeplearning_test_set_v1_fzg.csv")
+Fzg_raw <- read_csv2("../Daten/deeplearning_test_set_v1_fzg.csv")
 Fzg_raw <- Fzg_raw[,-1] ## remove column "X", only enumeration 
 
 # convert columns with date to dates
@@ -41,7 +41,7 @@ rm(Fzg_raw)
 ################################################################################################################################################
 
 # Import and clean failed vehicules
-Asf_raw <- read.csv2("../Daten/deeplearning_test_set_v1_asf.csv")
+Asf_raw <- read_csv2("../Daten/deeplearning_test_set_v1_asf.csv")
 Asf_raw <- Asf_raw[-1,-1] #X-Spalte entfernen, da diese nur als Zeilenummerierung Verwendung findet & Entfernen der ersten Zeile da zweite Überschrift
 
 Asf_raw$vin <- as.integer(Asf_raw$vin)
@@ -110,7 +110,7 @@ probs_plots <- stack_lines_probs(x = probs_johnson[probs_johnson$Fahrstrecke <= 
                            y2 = probs_kaplan[probs_kaplan$Fahrstrecke <= 500000,]$prob,
                            y3 = probs_nelson[probs_nelson$Fahrstrecke <= 500000,]$prob)
 
-Fzg_final <- merge(x = Fzg_complete, y = probs_johnson, by = "Fahrstrecke")
+Fzg_final <- merge(x = Fzg_complete, y = probs_kaplan, by = "Fahrstrecke")
 
 plot_ly(x = Fzg_final$prob, type = "histogram")
 
@@ -119,5 +119,5 @@ plot_ly(data = fzg_500, x = ~Fahrstrecke, y = ~prob , type = 'scatter', mode = '
 plot_ly(x = fzg_500$prob, type = "histogram")
 plot_ly(x = fzg_500[fzg_500$event==1,]$Fahrstrecke, type = "histogram")
 
-write_csv(fzg_500, "Fzg_final.csv")
+write_csv(fzg_500, "~/Daten/Fzg_final.csv")
 
